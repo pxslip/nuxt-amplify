@@ -4,6 +4,7 @@
   "name": "Nuxt 3 on Amplify",
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
   "image": "mcr.microsoft.com/devcontainers/typescript-node:0-16-bullseye",
+  "mounts": [{ "source": "${localEnv:HOME}${localEnv:USERPROFILE}/.aws", "target": "/home/node/.aws", "type": "bind" }],
 
   // Features to add to the dev container. More info: https://containers.dev/features.
   // "features": {},
