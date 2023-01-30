@@ -17,6 +17,16 @@ npm install
 pnpm install
 ```
 
+## Amplify Setup
+
+Using either the console (easiest), CLI, or configuration tools create a new Amplify hosting application.
+
+Update the platform of the application from `WEB` to `WEB_COMPUTE`
+
+```bash
+aws amplify update-app --app-id your-app-id --platform `WEB_COMPUTE` --region aws-region
+```
+
 ## Development Server
 
 Start the development server on http://localhost:3000
