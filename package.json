@@ -2,8 +2,8 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
-    "serve": "node .output/server/index.mjs",
-    "start": "node .output/server/index.mjs",
+    "serve": "node .output/standalone/index.mjs",
+    "start": "node .output/standalone/index.mjs",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",

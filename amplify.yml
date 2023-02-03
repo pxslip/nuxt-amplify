@@ -7,6 +7,9 @@ frontend:
     build:
       commands:
         - yarn run build
+    postBuild:
+      commands:
+        - cp .output/standalone/index.mjs .output/standalone/server.js
   artifacts:
     # IMPORTANT - Please verify your build output directory
     baseDirectory: .output
