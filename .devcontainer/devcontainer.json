@@ -18,9 +18,14 @@
 	"vscode": {
 		"extensions": [
 			"Vue.volar",
-			"esbenp.prettier-vscode"
+			"esbenp.prettier-vscode",
+			"amazonwebservices.aws-toolkit-vscode"
 		]
 	}
+},
+"features": {
+	"ghcr.io/devcontainers/features/terraform:1": {},
+	"ghcr.io/devcontainers/features/aws-cli:1": {}
 }
 
   // Configure tool-specific properties.
