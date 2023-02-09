@@ -1,27 +1,14 @@
-import { join, resolve } from 'path';
+import { config } from 'dotenv';
+config();
 // https://nuxt.com/docs/api/configuration/nuxt-config
-const outputDir = resolve('./.output');
-const standaloneDir = join(outputDir, 'standalone');
+
 export default defineNuxtConfig({
-  nitro: {
-    preset: undefined,
-    output: {
-      dir: outputDir,
-      serverDir: standaloneDir,
-      publicDir: standaloneDir,
-    },
+  runtimeConfig: {
+    bucket: process.env.S3_BUCKET,
+    bucketPathPrefix: 'main',
   },
-  vite: {
-    define: {
-      'window.global': {},
-    },
-    resolve: {
-      alias: [
-        {
-          find: './runtimeConfig',
-          replacement: './runtimeConfig.browser',
-        },
-      ],
-    },
+  nitro: {
+    preset: 'aws-lambda',
+    entry: 'handler.ts',
   },
 });
