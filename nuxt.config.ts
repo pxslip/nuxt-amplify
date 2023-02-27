@@ -9,6 +9,5 @@ export default defineNuxtConfig({
   },
   nitro: {
     preset: 'aws-lambda',
-    entry: 'handler.ts',
   },
 });

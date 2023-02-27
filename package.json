@@ -2,6 +2,7 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
+    "watch:build": "npx nodemon --exec \"yarn run build\" -e ts,vue --ignore stack/",
     "serve": "node .output/standalone/index.mjs",
     "start": "node .output/standalone/index.mjs",
     "dev": "nuxt dev",
@@ -10,7 +11,6 @@
     "postinstall": "nuxt prepare"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.266.1",
     "@types/aws-lambda": "^8.10.110",
     "nuxt": "^3.1.0"
   },
