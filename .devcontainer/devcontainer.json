@@ -13,20 +13,16 @@
   // "forwardPorts": [],s
 
   // Use 'postCreateCommand' to run commands after the container is created.
-"postCreateCommand": "yarn install",
-"customizations": {
-	"vscode": {
-		"extensions": [
-			"Vue.volar",
-			"esbenp.prettier-vscode",
-			"amazonwebservices.aws-toolkit-vscode"
-		]
-	}
-},
-"features": {
-	"ghcr.io/devcontainers/features/terraform:1": {},
-	"ghcr.io/devcontainers/features/aws-cli:1": {}
-}
+  "postCreateCommand": "sh .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": ["Vue.volar", "esbenp.prettier-vscode", "amazonwebservices.aws-toolkit-vscode"]
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/terraform:1": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
+  }
 
   // Configure tool-specific properties.
   // "customizations": {},
