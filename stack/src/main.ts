@@ -10,7 +10,7 @@ import { DeployStack } from './deploy';
 config();
 
 const app = new App();
-const domainName = 'nux-aws.pxslip.com';
+const domainName = 'nuxt-aws.pxslip.com';
 const siteIdentifier = 'NuxtOnAWS';
 const ssrHandlerFunctionName = `${siteIdentifier}_SSRHandler`;
 const coreStack = new CoreStack(app, 'core', {
