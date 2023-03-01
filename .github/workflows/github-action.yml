@@ -49,7 +49,7 @@ jobs:
       - name: Determine the correct lambda prefix
         id: lambda-alias
         run: |
-          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then echo 'main'; else echo 'pr-${{ github.event.number }}'; fi;) >> $GITHUP_OUTPUT
+          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then echo 'main'; else echo 'pr-${{ github.event.number }}'; fi;) >> $GITHUB_OUTPUT
       - name: Create the lambda alias
         run: |
           aws lambda create-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }}
