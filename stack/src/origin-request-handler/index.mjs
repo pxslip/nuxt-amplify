@@ -35,10 +35,17 @@ export async function handler(event, context) {
           FunctionName: arn,
           Qualifier: prefix,
           InvocationType: InvocationType.RequestResponse,
+          Payload: JSON.stringify(request),
         })
       );
-      console.log(lambdaResponse);
       const response = JSON.parse(new TextDecoder().decode(lambdaResponse.Payload));
+      response.status = `${response.statusCode}`;
+      const newHeaders = {};
+      for (const name in response.headers) {
+        newHeaders[name] = [{ value: response.headers[name] }];
+      }
+      response.headers = newHeaders;
+      console.log(Object.keys(response));
       console.log(response);
       return response;
     }
