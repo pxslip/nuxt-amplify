@@ -57,4 +57,4 @@ jobs:
           aws lambda create-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }}
       - name: Upload the static content to S3
         run: |
-          aws s3 sync .outputs/public/ s3://${{ env.BUCKET_NAME }}/${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }}/
+          aws s3 sync .output/public/ s3://${{ env.BUCKET_NAME }}/${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }}/
