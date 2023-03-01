@@ -1,52 +1,12 @@
-# Nuxt 3 Minimal Starter
+# Nuxt 3 on AWS Lambda
 
-Look at the [Nuxt 3 documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+## To Do
 
-## Setup
+- [ ] Finish the deploy stack process
 
-Make sure to install the dependencies:
+## Deploy Role
 
-```bash
-# yarn
-yarn install
-
-# npm
-npm install
-
-# pnpm
-pnpm install
-```
-
-## Amplify Setup
-
-Using either the console (easiest), CLI, or configuration tools create a new Amplify hosting application.
-
-Update the platform of the application from `WEB` to `WEB_COMPUTE`
-
-```bash
-aws amplify update-app --app-id your-app-id --platform `WEB_COMPUTE` --region aws-region
-```
-
-## Development Server
-
-Start the development server on http://localhost:3000
-
-```bash
-npm run dev
-```
-
-## Production
-
-Build the application for production:
-
-```bash
-npm run build
-```
-
-Locally preview production build:
-
-```bash
-npm run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+Needs to be able to:
+Update the lambda function
+Create lambda aliases
+List, add, delete files from the S3 bucket

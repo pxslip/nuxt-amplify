@@ -2,37 +2,25 @@
 // SPDX-License-Identifier: MPL-2.0
 import { App, CloudBackend, NamedCloudWorkspace } from 'cdktf';
 import { config } from 'dotenv';
-import { resolve } from 'path';
 import { CoreStack } from './core';
-import { DeployStack } from './deploy';
 
 // Load the .env file
 config();
 
 const app = new App();
-const domainName = 'nuxt-aws.pxslip.com';
-const siteIdentifier = 'NuxtOnAWS';
-const ssrHandlerFunctionName = `${siteIdentifier}_SSRHandler`;
+const domainName = process.env.DOMAIN_NAME!;
+const siteIdentifier = process.env.SITE_IDENTIFIER!;
+const validationDomain = process.env.VALIDATION_DOMAIN!;
+const gitHubPath = process.env.GITHUB_PATH!;
 const coreStack = new CoreStack(app, 'core', {
   siteIdentifier,
   domainName,
-  validationDomain: 'pxslip.com',
-  ssrHandlerFunctionName,
+  validationDomain,
+  gitHubPath,
 });
 new CloudBackend(coreStack, {
   hostname: process.env.TERRAFORM_HOST,
   organization: process.env.TERRAFORM_ORG!,
   workspaces: new NamedCloudWorkspace(process.env.TERRAFORM_WORKSPACE!),
-});
-
-const deployStack = new DeployStack(app, 'deploy', {
-  ssrHandlerFunctionName,
-  ssrHandlerFunctionPath: resolve('../.output/server'),
-  bucketName: domainName,
-});
-new CloudBackend(deployStack, {
-  hostname: process.env.TERRAFORM_HOST,
-  organization: process.env.TERRAFORM_ORG!,
-  workspaces: new NamedCloudWorkspace('nuxt-aws_deploy'),
 });
 app.synth();

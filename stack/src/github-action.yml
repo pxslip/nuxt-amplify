@@ -1,0 +1,56 @@
+# Workflow to update the lambda code, and sync static content for a nuxt site
+name: AWS example workflow
+on:
+  pull_request:
+    branches:
+      - 'release**'
+      - 'main'
+  push:
+    branches:
+      - 'main'
+env:
+  BUCKET_NAME: ${{ secrets.S3_BUCKET}}
+  ROLE_ARN: ${{ secrets.ROLE_ARN }}
+  FUCTION_NAME: ${{ vars.SSR_FUNCTION_NAME }}
+  AWS_REGION: 'us-east-1'
+# permission can be added at job level or workflow level
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+jobs:
+  S3PackageUpload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          role-session-name: deploynuxtsitesession
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Setup Node/Yarn
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'yarn'
+      - name: Install yarn deps
+        run: yarn install
+      - name: Build the site
+        run: yarn run build
+      - name: Zip the server output
+        run: cd .output/server && zip -r ../../server.zip . && cd -
+      - name: Update the lambda code
+        id: update-lambda
+        run: |
+          FUNCTION_VERSION=$(aws lambda update-function-code --function-name ${{ env.FUNCTION_NAME }} --zip-file server.zip --publish | jq '.Version') >> $GITHUB_OUTPUT
+      - name: Determine the correct lambda prefix
+        id: lambda-alias
+        run: |
+          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then echo 'main'; else echo 'pr-${{ github.event.number }}'; fi;) >> $GITHUP_OUTPUT
+      - name: Create the lambda alias
+        run: |
+          aws lambda create-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }}
+      - name: Upload the static content to S3
+        run: |
+          aws s3 sync .outputs/public/ s3://${{ env.BUCKET_NAME }}/${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }}/

@@ -7,17 +7,33 @@ import { AwsProvider } from '@cdktf/provider-aws/lib/provider';
 import { Route53Record } from '@cdktf/provider-aws/lib/route53-record';
 import { Route53Zone } from '@cdktf/provider-aws/lib/route53-zone';
 import { S3Bucket } from '@cdktf/provider-aws/lib/s3-bucket';
-import { TerraformIterator, TerraformStack } from 'cdktf';
+import { TerraformIterator, TerraformOutput, TerraformStack } from 'cdktf';
 import { Construct } from 'constructs';
 import { resolve } from 'path';
 import { Lambda } from '@gen/lambda';
+import { IamRole } from '@cdktf/provider-aws/lib/iam-role';
+import { DataAwsIamOpenidConnectProvider } from '@cdktf/provider-aws/lib/data-aws-iam-openid-connect-provider';
 
 interface CoreStackConfiguration {
+  /**
+   * The domain of the site being created/hosted
+   */
   domainName: string;
+  /**
+   * An identifier used to create/tag AWS resources
+   */
   siteIdentifier: string;
-  ssrHandlerFunctionName: string;
-  routeHandlerFunctionName?: string;
+  /**
+   * A git pathspec-like string that defines which org/repo/branch|PR|environment can assume the deploy role e.g. organization/repository/
+   */
+  gitHubPath: string;
+  /**
+   * If the domain is not the root domain and it is desirable to use the root as the validation, set this
+   */
   validationDomain?: string;
+  /**
+   * Override the name of the bucket to create
+   */
   bucketName?: string;
 }
 
@@ -25,18 +41,20 @@ export class CoreStack extends TerraformStack {
   constructor(
     scope: Construct,
     id: string,
-    { siteIdentifier, domainName, validationDomain, bucketName, ssrHandlerFunctionName }: CoreStackConfiguration
+    { siteIdentifier, domainName, validationDomain, bucketName, gitHubPath }: CoreStackConfiguration
   ) {
     super(scope, id);
-    const aws = new AwsProvider(this, 'aws_provider', {
+    // define our connection to AWS, uses the environment variables to figure out the key/secret
+    new AwsProvider(this, 'aws_provider', {
       profile: process.env.AWS_PROFILE,
     });
-    const accountId = aws.allowedAccountIds?.at(0);
-    const region = aws.region;
     validationDomain = validationDomain ?? domainName;
     bucketName = bucketName ?? domainName;
-    const ssrHandlerFunctionArn = `arn:aws:lambda:${region}:${accountId}:function:${ssrHandlerFunctionName}`;
-    // define our connection to AWS, uses the environment variables to figure out the key/secret
+
+    // Get a reference to the GitHub OIDC provider
+    const ghOidcProvider = new DataAwsIamOpenidConnectProvider(this, 'gh_iam_oidc_provider', {
+      url: 'https://token.actions.githubusercontent.com',
+    });
 
     // generate an ACM certificate for provided domain
     const certificate = new AcmCertificate(this, 'tls_certificate', {
@@ -79,6 +97,61 @@ export class CoreStack extends TerraformStack {
       bucket: bucketName,
     });
 
+    // The SSR lambda and the user
+    const ssrLambda = new Lambda(this, 'ssr_handler', {
+      runtime: 'nodejs18.x',
+      handler: 'index.handler',
+      sourcePath: resolve('./src/ssr-handler'),
+      functionName: `${siteIdentifier}_SSRHandler`,
+    });
+
+    const deployRole = new IamRole(this, 'deploy_role', {
+      name: `${siteIdentifier}_DeployRole`,
+      assumeRolePolicy: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Action: 'sts:AssumeRoleWithWebIdentity',
+            Principal: {
+              Federated: ghOidcProvider.arn,
+            },
+            Condition: {
+              StringLike: {
+                'token.actions.githubusercontent.com:sub': gitHubPath,
+              },
+              StringEquals: {
+                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+              },
+            },
+          },
+        ],
+      }),
+      inlinePolicy: [
+        {
+          name: 'NuxtSiteDeploy',
+          policy: JSON.stringify({
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: ['s3:PutObject', 's3:GetObject', 's3:ListBucket', 's3:DeleteObject', 's3:GetBucketLocation'],
+                Resource: [bucket.arn, `${bucket.arn}/*`],
+              },
+              {
+                Effect: 'Allow',
+                Action: ['lambda:UpdateFunctionCode', 'lambda:UpdateAlias', 'lambda:CreateAlias'],
+                Resource: [ssrLambda.lambdaFunctionArnOutput],
+              },
+            ],
+          }),
+        },
+      ],
+    });
+    new TerraformOutput(this, 'deploy_role_arn', {
+      value: deployRole.arn,
+    });
+
     const routingLambda = new Lambda(this, 'edge_handler', {
       runtime: 'nodejs18.x',
       handler: 'index.handler',
@@ -97,12 +170,7 @@ export class CoreStack extends TerraformStack {
           {
             Effect: 'Allow',
             Action: ['lambda:InvokeFunctionUrl', 'lambda:InvokeFunction'],
-            Resource: ['arn:aws:lambda:*:*:function:*'],
-            Condition: {
-              StringEquals: {
-                'aws:ResourceTag/site': siteIdentifier,
-              },
-            },
+            Resource: [ssrLambda.lambdaFunctionArnOutput, `${ssrLambda.lambdaFunctionArnOutput}*`],
           },
         ],
       }),
@@ -120,15 +188,6 @@ export class CoreStack extends TerraformStack {
       name: 'Managed-SecurityHeadersPolicy',
     });
 
-    // NOTE: Use these like environment variables for our edge router
-    const customHeaders = [];
-    if (ssrHandlerFunctionArn) {
-      customHeaders.push({
-        name: 'ssr-handler-arn',
-        value: ssrHandlerFunctionArn,
-      });
-    }
-
     new CloudfrontDistribution(this, 'cloudfront_distro', {
       enabled: true,
       aliases: [domainName, `*.${domainName}`],
@@ -136,7 +195,13 @@ export class CoreStack extends TerraformStack {
         {
           domainName: bucket.bucketRegionalDomainName,
           originId: 's3_bucket',
-          customHeader: customHeaders,
+          customHeader: [
+            // Treat these like environment variables for the routing function
+            {
+              name: 'ssr-handler-arn',
+              value: ssrLambda.lambdaFunctionArnOutput,
+            },
+          ],
         },
       ],
       defaultCacheBehavior: {
