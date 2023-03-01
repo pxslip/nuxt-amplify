@@ -45,7 +45,7 @@ jobs:
       - name: Update the lambda code
         id: update-lambda
         run: |
-          FUNCTION_VERSION=$(aws lambda update-function-code --function-name ${{ env.FUNCTION_NAME }} --zip-file server.zip --publish | jq '.Version') >> $GITHUB_OUTPUT
+          FUNCTION_VERSION=$(aws lambda update-function-code --function-name ${{ env.FUNCTION_NAME }} --zip-file fileb://./server.zip --publish | jq '.Version') >> $GITHUB_OUTPUT
       - name: Determine the correct lambda prefix
         id: lambda-alias
         run: |
