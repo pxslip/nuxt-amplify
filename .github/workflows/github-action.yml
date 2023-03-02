@@ -50,7 +50,7 @@ jobs:
       - name: Determine the correct lambda prefix
         id: lambda-alias
         run: |
-          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then echo 'main'; else echo 'pr-${{ github.event.number }}'; fi;)
+          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == refs/heads/main ]]; then echo 'main'; else echo 'pr-${{ github.event.number }}'; fi;)
           echo "LAMBDA_ALIAS=$LAMBDA_ALIAS" >> $GITHUB_OUTPUT
       - name: Create the lambda alias
         run: |

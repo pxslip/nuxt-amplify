@@ -31,12 +31,18 @@ export async function handler(event, context) {
     // get the lambda arn header
     const arn = request.origin.s3.customHeaders['ssr-handler-arn'][0].value;
     if (arn) {
+      const ssrRequest = {
+        path: request.uri,
+        httpMethod: request.method,
+        headers: request.headers,
+        body: request.body,
+      };
       const lambdaResponse = await lambda.send(
         new InvokeCommand({
           FunctionName: arn,
           Qualifier: prefix,
           InvocationType: InvocationType.RequestResponse,
-          Payload: JSON.stringify(request),
+          Payload: JSON.stringify(ssrRequest),
         })
       );
       const response = JSON.parse(new TextDecoder().decode(lambdaResponse.Payload));
