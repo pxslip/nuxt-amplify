@@ -13,22 +13,23 @@ const lambda = new LambdaClient({});
  */
 export async function handler(event, context) {
   const request = event.Records[0].cf.request;
-  console.log(request);
-  // subdomain value
-  const subdomain = request.headers.host[0].value.split('.')[0];
-  const prefix = subdomain.startsWith('dev-') ? subdomain : 'main';
+  console.log(JSON.stringify(event));
+  console.log(JSON.stringify(context));
+  const subdomain = request.headers.host[0].value.replace(request.origin.s3.customHeaders['base-domain'][0].value, '');
+  const prefix = subdomain.length ? subdomain : 'main';
   const key = join(prefix, request.uri);
+  const bucket = request.origin.s3.customHeaders['bucket-name'][0].value;
   try {
-    const existsResponse = await s3.send(new HeadObjectCommand({ Bucket: request.origin.s3.domainName, Key: key }));
+    const existsResponse = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    console.log(JSON.stringify(existsResponse));
     if (existsResponse.$metadata.httpStatusCode === 200) {
       request.uri = `/${key}`;
-      request.origin.s3.path = `/${key}`;
+      request.headers.host[0].value = `${bucket}.s3.amazonaws.com`;
       return request;
     }
   } catch (exc) {
     // get the lambda arn header
     const arn = request.origin.s3.customHeaders['ssr-handler-arn'][0].value;
-
     if (arn) {
       const lambdaResponse = await lambda.send(
         new InvokeCommand({
@@ -45,8 +46,6 @@ export async function handler(event, context) {
         newHeaders[name] = [{ value: response.headers[name] }];
       }
       response.headers = newHeaders;
-      console.log(Object.keys(response));
-      console.log(response);
       return response;
     }
   }

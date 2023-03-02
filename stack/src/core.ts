@@ -13,6 +13,8 @@ import { resolve } from 'path';
 import { Lambda } from '@gen/lambda';
 import { IamRole } from '@cdktf/provider-aws/lib/iam-role';
 import { DataAwsIamOpenidConnectProvider } from '@cdktf/provider-aws/lib/data-aws-iam-openid-connect-provider';
+import { CloudfrontOriginAccessControl } from '@cdktf/provider-aws/lib/cloudfront-origin-access-control';
+import { S3BucketPolicy } from '@cdktf/provider-aws/lib/s3-bucket-policy';
 
 interface CoreStackConfiguration {
   /**
@@ -103,6 +105,8 @@ export class CoreStack extends TerraformStack {
       handler: 'index.handler',
       sourcePath: resolve('./src/ssr-handler'),
       functionName: `${siteIdentifier}_SSRHandler`,
+      timeout: 30,
+      ignoreSourceCodeHash: true,
     });
 
     const deployRole = new IamRole(this, 'deploy_role', {
@@ -157,6 +161,7 @@ export class CoreStack extends TerraformStack {
       handler: 'index.handler',
       sourcePath: resolve('./src/origin-request-handler/'),
       functionName: `${siteIdentifier}_OriginRequestHandler`,
+      timeout: 30,
       lambdaAtEdge: true,
       attachPolicyJson: true,
       policyJson: JSON.stringify({
@@ -176,30 +181,47 @@ export class CoreStack extends TerraformStack {
       }),
     });
 
-    const allViewerOriginRequestPolicy = new DataAwsCloudfrontOriginRequestPolicy(
-      this,
-      'all_viewer_origin_request_policy',
-      { name: 'Managed-AllViewer' }
-    );
-    const cacheOptimizedCachePolicy = new DataAwsCloudfrontCachePolicy(this, 'cache_optimized_cache_policy', {
-      name: 'Managed-CachingOptimized',
+    const originRequestPolicy = new DataAwsCloudfrontOriginRequestPolicy(this, 'origin_request_policy', {
+      name: 'Managed-AllViewer',
+    });
+    // const cacheOptimizedCachePolicy = new DataAwsCloudfrontCachePolicy(this, 'cache_optimized_cache_policy', {
+    //   name: 'Managed-CachingOptimized',
+    // });
+    const cacheDisabledCachePolicy = new DataAwsCloudfrontCachePolicy(this, 'cache_disabled_cache_policy', {
+      name: 'Managed-CachingDisabled',
     });
     const secHeadersPolicy = new DataAwsCloudfrontResponseHeadersPolicy(this, 'security_header_response_policy', {
       name: 'Managed-SecurityHeadersPolicy',
     });
 
-    new CloudfrontDistribution(this, 'cloudfront_distro', {
+    const oac = new CloudfrontOriginAccessControl(this, 'cloudfront_origin_access_control', {
+      name: `${siteIdentifier}_OAC`,
+      originAccessControlOriginType: 's3',
+      signingBehavior: 'always',
+      signingProtocol: 'sigv4',
+    });
+
+    const cloudfrontDistro = new CloudfrontDistribution(this, 'cloudfront_distro', {
       enabled: true,
       aliases: [domainName, `*.${domainName}`],
       origin: [
         {
           domainName: bucket.bucketRegionalDomainName,
           originId: 's3_bucket',
+          originAccessControlId: oac.id,
           customHeader: [
             // Treat these like environment variables for the routing function
             {
               name: 'ssr-handler-arn',
               value: ssrLambda.lambdaFunctionArnOutput,
+            },
+            {
+              name: 'base-domain',
+              value: domainName,
+            },
+            {
+              name: 'bucket-name',
+              value: bucket.bucket,
             },
           ],
         },
@@ -209,8 +231,8 @@ export class CoreStack extends TerraformStack {
         cachedMethods: ['GET', 'HEAD'],
         targetOriginId: 's3_bucket',
         viewerProtocolPolicy: 'redirect-to-https',
-        cachePolicyId: cacheOptimizedCachePolicy.id,
-        originRequestPolicyId: allViewerOriginRequestPolicy.id,
+        cachePolicyId: cacheDisabledCachePolicy.id,
+        originRequestPolicyId: originRequestPolicy.id,
         responseHeadersPolicyId: secHeadersPolicy.id,
         lambdaFunctionAssociation: [
           {
@@ -234,6 +256,27 @@ export class CoreStack extends TerraformStack {
         bucket: bucket.bucketDomainName,
         prefix: 'logs',
       },
+    });
+    new S3BucketPolicy(this, 'bucket_policy', {
+      bucket: bucket.id,
+      policy: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: {
+              Service: 'cloudfront.amazonaws.com',
+            },
+            Action: 's3:GetObject',
+            Resource: `${bucket.arn}/*`,
+            Condition: {
+              StringEquals: {
+                'AWS:SourceArn': cloudfrontDistro.arn,
+              },
+            },
+          },
+        ],
+      }),
     });
   }
 }
