@@ -1,36 +1,29 @@
 # Workflow to update the lambda code, and sync static content for a nuxt site
-name: AWS example workflow
+name: Deploy the Site
 on:
   pull_request:
     branches:
-      - 'release**'
       - 'main'
   push:
     branches:
       - 'main'
-      - 'release**'
   workflow_dispatch:
 env:
-  BUCKET_NAME: ${{ secrets.S3_BUCKET}}
+  BUCKET_NAME: ${{ secrets.S3_BUCKET }}
   ROLE_ARN: ${{ secrets.ROLE_ARN }}
   FUNCTION_NAME: ${{ secrets.SSR_FUNCTION_NAME }}
-  AWS_REGION: 'us-east-1'
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 # permission can be added at job level or workflow level
 permissions:
-  id-token: write # This is required for requesting the JWT
   contents: read # This is required for actions/checkout
 jobs:
-  S3PackageUpload:
+  BuildSite:
     runs-on: ubuntu-latest
+    outputs:
+      alias: ${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }}
     steps:
       - name: Git clone the repository
         uses: actions/checkout@v3
-      - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: ${{ env.ROLE_ARN }}
-          role-session-name: deploynuxtsitesession
-          aws-region: ${{ env.AWS_REGION }}
       - name: Setup Node/Yarn
         uses: actions/setup-node@v3
         with:
@@ -38,24 +31,100 @@ jobs:
           cache: 'yarn'
       - name: Install yarn deps
         run: yarn install
+      - name: Generate types
+        run: yarn run generate-types
       - name: Build the site
         run: yarn run build
-      - name: Zip the server output
-        run: cd .output/server && zip -r ../../server.zip . && cd -
+      - name: Zip the server contents
+        run: |
+          cd .output/server
+          zip -r server.zip .
+      - name: Determine the correct lambda prefix
+        id: lambda-alias
+        run: |
+          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == refs/heads/* ]]; then BRANCH="${GITHUB_REF/refs\/heads\//''}"; echo "${BRANCH/./'-'}"; else echo 'pr-${{ github.event.number }}'; fi;)
+          echo "LAMBDA_ALIAS=$LAMBDA_ALIAS" >> $GITHUB_OUTPUT
+      - name: Store the server build as an artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: server
+          path: .output/server/server.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Store the static build as an artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: public
+          path: .output/public
+          if-no-files-found: error
+          retention-days: 7
+  UpdateLambda:
+    runs-on: ubuntu-latest
+    needs: BuildSite
+    steps:
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          role-session-name: deploynuxtsitesession
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          # aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Download the server artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: server
       - name: Update the lambda code
         id: update-lambda
         run: |
           FUNCTION_VERSION=$(aws lambda update-function-code --function-name ${{ env.FUNCTION_NAME }} --zip-file fileb://./server.zip --publish | jq '.Version')
           echo "FUNCTION_VERSION=$FUNCTION_VERSION" >> $GITHUB_OUTPUT
-      - name: Determine the correct lambda prefix
-        id: lambda-alias
-        run: |
-          LAMBDA_ALIAS=$(if [[ "$GITHUB_REF" == refs/heads/main ]]; then echo 'main'; else echo 'pr-${{ github.event.number }}'; fi;)
-          echo "LAMBDA_ALIAS=$LAMBDA_ALIAS" >> $GITHUB_OUTPUT
       - name: Create the lambda alias
         run: |
-          aws lambda create-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }} \
-          || aws lambda update-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }}
+          aws lambda create-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ needs.BuildSite.outputs.alias }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }} \
+          || aws lambda update-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ needs.BuildSite.outputs.alias }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }}
+      - name: Create the lambda invoke url
+        run: |
+          aws lambda create-function-url-config --function-name ${{ env.FUNCTION_NAME }} --qualifier ${{ needs.BuildSite.outputs.alias }} --auth-type AWS_IAM
+  UpdateStaticContent:
+    runs-on: ubuntu-latest
+    needs: BuildSite
+    steps:
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          role-session-name: deploynuxtsitesession
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          # aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Download the server artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: public
+          path: public
       - name: Upload the static content to S3
         run: |
-          aws s3 sync .output/public/ s3://${{ env.BUCKET_NAME }}/${{ steps.lambda-alias.outputs.LAMBDA_ALIAS }}/
+          aws s3 sync public/ s3://${{ env.BUCKET_NAME }}/${{ needs.BuildSite.outputs.alias }}/
+  CommentWithURL:
+    runs-on: ubuntu-latest
+    needs: BuildSite
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'opened' }}
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      # TODO: Add a step that searches for an existing comment and updates it, then remove the filter for the opened event
+      - name: Comment with the preview URL
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Once deployed the preview url for this pull request will be available at https://${{ needs.BuildSite.outputs.alias }}.main.ushmm.org'
+            })
