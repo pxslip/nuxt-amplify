@@ -31,8 +31,6 @@ jobs:
           cache: 'yarn'
       - name: Install yarn deps
         run: yarn install
-      - name: Generate types
-        run: yarn run generate-types
       - name: Build the site
         run: yarn run build
       - name: Zip the server contents
