@@ -1,0 +1,12 @@
+{
+	"language": "typescript",
+	"app": "yarn ts-node --project stack/tsconfig.json stack/main.ts",
+	"projectId": "e006a706-3f6c-4b54-b6e2-61042137ac32",
+	"sendCrashReports": "true",
+	"terraformProviders": [],
+	"terraformModules": [],
+	"context": {
+		"excludeStackIdFromLogicalIds": "true",
+		"allowSepCharsInLogicalIds": "true"
+	}
+}

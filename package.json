@@ -1,18 +1,45 @@
 {
-  "private": true,
-  "scripts": {
-    "build": "nuxt build",
-    "watch:build": "npx nodemon --exec \"yarn run build\" -e ts,vue --ignore stack/",
-    "serve": "node .output/standalone/index.mjs",
-    "start": "node .output/standalone/index.mjs",
-    "dev": "nuxt dev",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
-  },
-  "devDependencies": {
-    "@types/aws-lambda": "^8.10.110",
-    "nuxt": "^3.1.0"
-  },
-  "dependencies": {}
+	"private": true,
+	"scripts": {
+		"build": "nuxt build",
+		"watch:build": "npx nodemon --exec \"yarn run build\" -e ts,vue --ignore stack/",
+		"serve": "node .output/standalone/index.mjs",
+		"start": "node .output/standalone/index.mjs",
+		"dev": "nuxt dev",
+		"generate": "nuxt generate",
+		"preview": "nuxt preview",
+		"postinstall": "nuxt prepare",
+		"ts-node": "ts-node --experimental-specifier-resolution=node --esm -r tsconfig-paths/register",
+		"cdktf:get": "cdktf get",
+		"cdktf:build": "tsc",
+		"cdktf:synth": "cdktf synth",
+		"cdktf:compile": "tsc --pretty",
+		"cdktf:watch": "tsc -w",
+		"cdktf:test": "jest",
+		"cdktf:test:watch": "jest --watch",
+		"cdktf:upgrade": "yarn add cdktf@latest cdktf-cli@latest",
+		"cdktf:upgrade:next": "yarn add cdktf@next cdktf-cli@next"
+	},
+	"devDependencies": {
+		"@aws-sdk/client-lambda": "^3.278.0",
+		"@aws-sdk/client-s3": "^3.266.1",
+		"@cdktf/provider-archive": "^7.0.0",
+		"@cdktf/provider-aws": "^16.0.6",
+		"@cdktf/provider-local": "^7.0.0",
+		"@types/aws-lambda": "^8.10.110",
+		"@types/jest": "^29.4.0",
+		"@types/node": "^18.11.19",
+		"cdktf": "^0.17.3",
+		"cdktf-cli": "^0.17.3",
+		"constructs": "^10.2.69",
+		"dotenv": "^16.0.3",
+		"jest": "^29.6.2",
+		"nuxt": "^3.6.5",
+		"ts-jest": "~29.1.1",
+		"ts-node": "~10.9.1",
+		"tsconfig-paths": "~4.2.0",
+		"typescript": "^5.1.6"
+	},
+	"packageManager": "yarn@3.6.1",
+	"type": "module"
 }
