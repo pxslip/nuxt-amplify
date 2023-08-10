@@ -7,9 +7,24 @@ on:
   push:
     branches:
       - 'main'
+    paths-ignore:
+      - 'cdktf.json'
+      - 'deploying.md'
+      - '.devcontainer/**'
+      - '.github/**'
+      - '!.github/workflows/deploy.yml'
+      - '.gitignore'
+      - 'jest.stack.config.js'
+      - '.prettierrc'
+      - 'README.md'
+      - 'stack/**'
+      - 'tsconfig.json'
+      - '.vscode/**'
+      - '.yarn/**'
+      - '.yarnrc.yml'
   workflow_dispatch:
 env:
-  BUCKET_NAME: ${{ secrets.S3_BUCKET }}
+  BUCKET_NAME: ${{ vars.S3_BUCKET }}
   ROLE_ARN: ${{ secrets.ROLE_ARN }}
   FUNCTION_NAME: ${{ secrets.SSR_FUNCTION_NAME }}
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
