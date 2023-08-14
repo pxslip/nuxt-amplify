@@ -1,0 +1,73 @@
+{
+	"Records": [
+		{
+			"cf": {
+				"config": {
+					"distributionDomainName": "d3s9emze4ymus4.cloudfront.net",
+					"distributionId": "E3OBVWU6B1JT16",
+					"eventType": "origin-request",
+					"requestId": "kTroHytxkAUtaq032E71N4M4OrSPGd7geYjmXIOH6ruUEbJDa7QmKg=="
+				},
+				"request": {
+					"body": { "action": "read-only", "data": "", "encoding": "base64", "inputTruncated": false },
+					"clientIp": "108.51.83.231",
+					"headers": {
+						"host": [{ "key": "Host", "value": "nuxt.pxslip.com" }],
+						"accept-language": [{ "key": "Accept-Language", "value": "en-US,en;q=0.9" }],
+						"accept": [
+							{
+								"key": "Accept",
+								"value": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+							}
+						],
+						"x-forwarded-for": [{ "key": "X-Forwarded-For", "value": "108.51.83.231" }],
+						"user-agent": [
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+							}
+						],
+						"via": [{ "key": "Via", "value": "1.1 f38e61aa8e28ddaa2215ccc9ddc01f3c.cloudfront.net (CloudFront)" }],
+						"cache-control": [{ "key": "cache-control", "value": "max-age=0" }],
+						"sec-ch-ua": [
+							{
+								"key": "sec-ch-ua",
+								"value": "\"Not/A)Brand\";v=\"99\", \"Google Chrome\";v=\"115\", \"Chromium\";v=\"115\""
+							}
+						],
+						"sec-ch-ua-mobile": [{ "key": "sec-ch-ua-mobile", "value": "?0" }],
+						"sec-ch-ua-platform": [{ "key": "sec-ch-ua-platform", "value": "\"Windows\"" }],
+						"dnt": [{ "key": "dnt", "value": "1" }],
+						"upgrade-insecure-requests": [{ "key": "upgrade-insecure-requests", "value": "1" }],
+						"sec-fetch-site": [{ "key": "sec-fetch-site", "value": "none" }],
+						"sec-fetch-mode": [{ "key": "sec-fetch-mode", "value": "navigate" }],
+						"sec-fetch-user": [{ "key": "sec-fetch-user", "value": "?1" }],
+						"sec-fetch-dest": [{ "key": "sec-fetch-dest", "value": "document" }],
+						"accept-encoding": [{ "key": "accept-encoding", "value": "gzip, deflate, br" }]
+					},
+					"method": "GET",
+					"origin": {
+						"s3": {
+							"authMethod": "none",
+							"customHeaders": {
+								"base-domain": [{ "key": "base-domain", "value": "nuxt.pxslip.com" }],
+								"bucket-name": [{ "key": "bucket-name", "value": "nuxt.pxslip.com" }],
+								"resource-region": [{ "key": "resource-region", "value": "us-east-2" }],
+								"ssr-handler-arn": [
+									{
+										"key": "ssr-handler-arn",
+										"value": "arn:aws:lambda:us-east-2:085945294594:function:NuxtAWS_SSRHandler"
+									}
+								]
+							},
+							"domainName": "nuxt.pxslip.com.s3.us-east-2.amazonaws.com",
+							"path": ""
+						}
+					},
+					"querystring": "",
+					"uri": "/"
+				}
+			}
+		}
+	]
+}

@@ -99,8 +99,10 @@ jobs:
           aws lambda create-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ needs.BuildSite.outputs.alias }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }} \
           || aws lambda update-alias --function-name ${{ env.FUNCTION_NAME }} --name ${{ needs.BuildSite.outputs.alias }} --function-version ${{ steps.update-lambda.outputs.FUNCTION_VERSION }}
       - name: Create the lambda invoke url
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'opened' }}
         run: |
-          aws lambda create-function-url-config --function-name ${{ env.FUNCTION_NAME }} --qualifier ${{ needs.BuildSite.outputs.alias }} --auth-type AWS_IAM
+          aws lambda get-function-url-config --function-name ${{ env.FUNCTION_NAME }} --qualifier ${{ needs.BuildSite.outputs.alias }} \
+          || aws lambda create-function-url-config --function-name ${{ env.FUNCTION_NAME }} --qualifier ${{ needs.BuildSite.outputs.alias }} --auth-type NONE
   UpdateStaticContent:
     runs-on: ubuntu-latest
     needs: BuildSite

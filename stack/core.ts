@@ -1,24 +1,26 @@
+import { DataArchiveFile } from '@cdktf/provider-archive/lib/data-archive-file';
+import { ArchiveProvider } from '@cdktf/provider-archive/lib/provider';
 import { AcmCertificate } from '@cdktf/provider-aws/lib/acm-certificate';
 import { CloudfrontDistribution } from '@cdktf/provider-aws/lib/cloudfront-distribution';
+import { CloudfrontOriginAccessControl } from '@cdktf/provider-aws/lib/cloudfront-origin-access-control';
 import { DataAwsCloudfrontCachePolicy } from '@cdktf/provider-aws/lib/data-aws-cloudfront-cache-policy';
 import { DataAwsCloudfrontOriginRequestPolicy } from '@cdktf/provider-aws/lib/data-aws-cloudfront-origin-request-policy';
 import { DataAwsCloudfrontResponseHeadersPolicy } from '@cdktf/provider-aws/lib/data-aws-cloudfront-response-headers-policy';
+import { DataAwsIamOpenidConnectProvider } from '@cdktf/provider-aws/lib/data-aws-iam-openid-connect-provider';
+import { IamPolicy } from '@cdktf/provider-aws/lib/iam-policy';
+import { IamRole } from '@cdktf/provider-aws/lib/iam-role';
 import { AwsProvider } from '@cdktf/provider-aws/lib/provider';
 import { Route53Record } from '@cdktf/provider-aws/lib/route53-record';
 import { Route53Zone } from '@cdktf/provider-aws/lib/route53-zone';
 import { S3Bucket } from '@cdktf/provider-aws/lib/s3-bucket';
-import { TerraformIterator, TerraformStack, TerraformAsset } from 'cdktf';
+import { S3BucketOwnershipControls } from '@cdktf/provider-aws/lib/s3-bucket-ownership-controls';
+import { S3BucketPolicy } from '@cdktf/provider-aws/lib/s3-bucket-policy';
+import { LambdaPermission } from '@cdktf/provider-aws/lib/lambda-permission';
+import { TerraformAsset, TerraformIterator, TerraformStack } from 'cdktf';
 import { Construct } from 'constructs';
 import { resolve } from 'path';
-import { IamRole } from '@cdktf/provider-aws/lib/iam-role';
-import { IamPolicy } from '@cdktf/provider-aws/lib/iam-policy';
-import { DataAwsIamOpenidConnectProvider } from '@cdktf/provider-aws/lib/data-aws-iam-openid-connect-provider';
-import { CloudfrontOriginAccessControl } from '@cdktf/provider-aws/lib/cloudfront-origin-access-control';
-import { S3BucketPolicy } from '@cdktf/provider-aws/lib/s3-bucket-policy';
-import { S3BucketOwnershipControls } from '@cdktf/provider-aws/lib/s3-bucket-ownership-controls';
 import { Lambda } from './constructs/Lambda.js';
-import { DataArchiveFile } from '@cdktf/provider-archive/lib/data-archive-file';
-import { ArchiveProvider } from '@cdktf/provider-archive/lib/provider';
+import './build.js';
 
 interface CoreStackConfiguration {
 	/**
@@ -51,7 +53,7 @@ export class CoreStack extends TerraformStack {
 	) {
 		super(scope, id);
 		// define our connection to AWS, uses the environment variables to figure out the key/secret
-		new AwsProvider(this, 'aws_provider', {
+		const defaultProvider = new AwsProvider(this, 'aws_provider', {
 			region: process.env.AWS_REGION,
 			profile: process.env.AWS_PROFILE,
 		});
@@ -167,8 +169,13 @@ export class CoreStack extends TerraformStack {
 							},
 							{
 								Effect: 'Allow',
-								Action: ['lambda:UpdateFunctionCode', 'lambda:UpdateAlias', 'lambda:CreateAlias'],
-								Resource: [ssrLambda.lambda.arn],
+								Action: [
+									'lambda:UpdateFunctionCode',
+									'lambda:UpdateAlias',
+									'lambda:CreateAlias',
+									'lambda:CreateFunctionUrlConfig',
+								],
+								Resource: [ssrLambda.lambda.arn, `${ssrLambda.lambda.arn}:*`],
 							},
 						],
 					}),
@@ -177,7 +184,7 @@ export class CoreStack extends TerraformStack {
 		});
 
 		const orhHandlerAsset = new TerraformAsset(this, 'origin_request_handler_code_asset', {
-			path: resolve('./stack/origin-request-handler'),
+			path: resolve('./stack/dist/origin-request-handler'),
 		});
 		const code = new DataArchiveFile(this, 'code_archive', {
 			type: 'zip',
@@ -195,7 +202,7 @@ export class CoreStack extends TerraformStack {
 					},
 					{
 						Effect: 'Allow',
-						Action: ['lambda:InvokeFunctionUrl', 'lambda:InvokeFunction'],
+						Action: ['lambda:InvokeFunctionUrl', 'lambda:InvokeFunction', 'lambda:GetFunctionUrlConfig'],
 						Resource: [ssrLambda.lambda.arn, `${ssrLambda.lambda.arn}*`],
 					},
 				],
@@ -211,6 +218,13 @@ export class CoreStack extends TerraformStack {
 			edge: true,
 			managedPolicies: [routingLambdaPolicy.arn],
 			provider: usEast1Provider,
+		});
+
+		// give the routing lambda invocation permissions directly on the ssr lambda
+		new LambdaPermission(this, 'origin_request_handler_ssr_invoke_permission', {
+			action: 'lambda:InvokeFunctionUrl',
+			functionName: ssrLambda.lambda.functionName,
+			principal: 'edgelambda.amazonaws.com',
 		});
 
 		const originRequestPolicy = new DataAwsCloudfrontOriginRequestPolicy(this, 'origin_request_policy', {
@@ -255,6 +269,10 @@ export class CoreStack extends TerraformStack {
 							name: 'bucket-name',
 							value: bucket.bucket,
 						},
+						{
+							name: 'resource-region',
+							value: defaultProvider.region ?? 'us-east-1',
+						},
 					],
 				},
 			],
@@ -287,6 +305,28 @@ export class CoreStack extends TerraformStack {
 			loggingConfig: {
 				bucket: logBucket.bucketDomainName,
 				prefix: siteIdentifier,
+			},
+		});
+
+		new Route53Record(this, 'cloudfront_cname_record_base', {
+			zoneId: zone.id,
+			name: domainName,
+			type: 'A',
+			alias: {
+				name: cloudfrontDistro.domainName,
+				zoneId: cloudfrontDistro.hostedZoneId,
+				evaluateTargetHealth: true,
+			},
+		});
+
+		new Route53Record(this, 'cloudfront_cname_record_wildcard', {
+			zoneId: zone.id,
+			name: `*.${domainName}`,
+			type: 'A',
+			alias: {
+				name: cloudfrontDistro.domainName,
+				zoneId: cloudfrontDistro.hostedZoneId,
+				evaluateTargetHealth: true,
 			},
 		});
 

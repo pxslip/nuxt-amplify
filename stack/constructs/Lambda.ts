@@ -88,6 +88,7 @@ export class Lambda extends Construct {
 		this.#logGroup = new CloudwatchLogGroup(this, 'log_group', {
 			name: `/aws/lambda/${edge ? 'us-east-1.' : ''}${functionName}`,
 			retentionInDays: logRetention,
+			provider: provider,
 		});
 
 		const services = ['lambda.amazonaws.com'];
